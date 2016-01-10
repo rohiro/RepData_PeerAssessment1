@@ -8,6 +8,27 @@ First, we'll read in and process the data
 
 ```r
 library(ggplot2)
+library(dplyr)
+```
+
+```
+## 
+## Attaching package: 'dplyr'
+```
+
+```
+## The following objects are masked from 'package:stats':
+## 
+##     filter, lag
+```
+
+```
+## The following objects are masked from 'package:base':
+## 
+##     intersect, setdiff, setequal, union
+```
+
+```r
 #First read it in
 act <- read.csv(unzip('activity.zip'))
 
@@ -21,7 +42,7 @@ Now I'll make a histogram of the total number of steps taken each day
 
 
 ```r
-SumOfSteps <- aggregate(steps ~ date, act, sum)
+SumOfSteps <- group_by(act, date) %>% summarize( steps = sum(steps, na.rm = TRUE))
 qplot(steps, data = SumOfSteps)
 ```
 
@@ -34,11 +55,11 @@ qplot(steps, data = SumOfSteps)
 Let's answer the question of what is the mean total number of steps taken per day?
 
 ```r
-mean(SumOfSteps$steps)
+mean(SumOfSteps$steps, na.rm = TRUE)
 ```
 
 ```
-## [1] 10766.19
+## [1] 9354.23
 ```
 
 How about the median?]
@@ -48,7 +69,7 @@ median(SumOfSteps$steps)
 ```
 
 ```
-## [1] 10765
+## [1] 10395
 ```
 
 
@@ -58,7 +79,7 @@ What does a typical day look like?
 
 ```r
 #Time series plot of the average number of steps taken  
-AvgActivityPattern <- aggregate(steps ~ interval, act, mean)  
+AvgActivityPattern <- group_by(act, interval) %>% summarize( steps = mean(steps, na.rm = TRUE))  
 qplot(interval, steps,data = AvgActivityPattern, geom = "line")  
 ```
 
@@ -124,18 +145,18 @@ replace the corresponding step value
 ```r
 #First create a new dataset
 ActImputed <- act
-#just keep going through the dataset until no more NA are found
-while (mean(is.na(ActImputed$steps) != 0)) {
-    StepsNA <-is.na(ActImputed$steps)
-    MatchesOverallAverage <- AvgActivityPattern$interval== ActImputed$interval[StepsNA][1]
-    ActImputed$steps[StepsNA][1] <- AvgActivityPattern$steps[MatchesOverallAverage]
-}
+#find matches and use the values for which there are NAs
+ActImputed <-
+  act %>%
+  left_join(AvgActivityPattern, by = "interval") %>%
+  mutate(steps = ifelse( is.na(steps.x), steps.y, steps.x )) %>%
+  select(c(2, 3, 5))
 ```
 
 Make a new histogram of the total number of steps taken each day with imputed data
 
 ```r
-SumOfStepsImputed <- aggregate(steps ~ date, ActImputed, sum)
+SumOfStepsImputed <- group_by(ActImputed, date) %>% summarize( steps = sum(steps, na.rm = TRUE))
 qplot(steps, data = SumOfStepsImputed)
 ```
 
@@ -148,7 +169,7 @@ qplot(steps, data = SumOfStepsImputed)
 What's the new mean and median?
 
 ```r
-mean(SumOfStepsImputed$steps) #10766.19 Same as before
+mean(SumOfStepsImputed$steps) 
 ```
 
 ```
@@ -156,15 +177,13 @@ mean(SumOfStepsImputed$steps) #10766.19 Same as before
 ```
 
 ```r
-median(SumOfStepsImputed$steps) #10766.18 Now went up slightly and is also the same as the mean
+median(SumOfStepsImputed$steps)
 ```
 
 ```
 ## [1] 10766.19
 ```
-So the mean stayed the same but the median changed by a little and also is very close to the mean
-
-
+So the mean went up and the median changed by a little and now both are essentially equal.
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
